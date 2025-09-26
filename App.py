@@ -352,9 +352,15 @@ with col1:
         # Filter categories based on selection
         display_categories = categories if selected_category == "All Categories" else {selected_category: categories[selected_category]}
         
-        with st.form("enhanced_system_form", clear_on_submit=False):
-            for section, items in display_categories.items():
-                st.markdown(f'<div class="section-header"><h3>🔹 {section}</h3></div>', unsafe_allow_html=True)
+        # Filter categories based on selection
+        display_categories = categories if selected_category == "All Categories" else {selected_category: categories[selected_category]}
+        
+        # Create form for each category separately to avoid issues
+        for section, items in display_categories.items():
+            st.markdown(f'<div class="section-header"><h3>🔹 {section}</h3></div>', unsafe_allow_html=True)
+            
+            with st.form(f"form_{section.replace(' ', '_').replace('&', 'and')}", clear_on_submit=False):
+                changes_made = False
                 
                 for name, desc in items:
                     # Filter by search query
@@ -370,36 +376,36 @@ with col1:
                             current_data = st.session_state.enhanced_data[section][name]
                             
                             username = st.text_input(
-                                f"Username/Email for {name}",
+                                f"Username/Email",
                                 current_data["username"],
-                                key=f"username_{section}_{name}"
+                                key=f"username_{section}_{name}".replace(" ", "_").replace("&", "and")
                             )
                             
                             password = st.text_input(
-                                f"Password for {name}",
+                                f"Password",
                                 current_data["password"],
                                 type="password",
-                                key=f"password_{section}_{name}"
+                                key=f"password_{section}_{name}".replace(" ", "_").replace("&", "and")
                             )
                             
                             url = st.text_input(
-                                f"URL/Website for {name}",
+                                f"URL/Website",
                                 current_data["url"],
-                                key=f"url_{section}_{name}"
+                                key=f"url_{section}_{name}".replace(" ", "_").replace("&", "and")
                             )
                         
                         with col_b:
                             notes = st.text_area(
-                                f"Notes for {name}",
+                                f"Notes",
                                 current_data["notes"],
                                 height=100,
-                                key=f"notes_{section}_{name}"
+                                key=f"notes_{section}_{name}".replace(" ", "_").replace("&", "and")
                             )
                             
                             tags_input = st.text_input(
-                                f"Tags (comma-separated) for {name}",
+                                f"Tags (comma-separated)",
                                 ", ".join(current_data["tags"]),
-                                key=f"tags_{section}_{name}"
+                                key=f"tags_{section}_{name}".replace(" ", "_").replace("&", "and")
                             )
                             tags = [tag.strip() for tag in tags_input.split(",") if tag.strip()]
                         
@@ -414,25 +420,15 @@ with col1:
                                     for tip in feedback:
                                         st.write(f"• {tip}")
                         
-                        # Password generator
-                        col_gen1, col_gen2, col_gen3 = st.columns([1, 1, 1])
-                        with col_gen1:
-                            if st.button(f"🎲 Generate Strong Password", key=f"gen_{section}_{name}"):
-                                new_password = generate_strong_password()
-                                st.session_state.enhanced_data[section][name]["password"] = new_password
-                                st.rerun()
+                        # Check if data has changed
+                        if (username != current_data["username"] or 
+                            password != current_data["password"] or 
+                            url != current_data["url"] or 
+                            notes != current_data["notes"] or 
+                            tags != current_data["tags"]):
+                            changes_made = True
                         
-                        with col_gen2:
-                            if st.button(f"👁️ Show Password", key=f"show_{section}_{name}"):
-                                if password:
-                                    st.code(password)
-                        
-                        with col_gen3:
-                            if st.button(f"📋 Copy Password", key=f"copy_{section}_{name}"):
-                                if password:
-                                    st.code(f"Password copied: {password}")
-                        
-                        # Update session state
+                        # Update session state immediately (don't wait for submit)
                         st.session_state.enhanced_data[section][name].update({
                             "username": username,
                             "password": password,
@@ -442,36 +438,71 @@ with col1:
                             "last_modified": datetime.now().isoformat(),
                             "password_strength": check_password_strength(password)[0] if password else "Not Set"
                         })
-            
-            submitted = st.form_submit_button("💾 Save All Changes", type="primary")
-            if submitted:
-                st.success("✅ All changes saved successfully!")
+                
+                # Submit button for this section
+                submitted = st.form_submit_button(f"💾 Save {section}", type="primary")
+                if submitted:
+                    st.success(f"✅ {section} data saved successfully!")
+        
+        # Password generation tools outside forms
+        st.markdown("---")
+        st.subheader("🔧 Password Tools")
+        
+        tool_col1, tool_col2, tool_col3 = st.columns(3)
+        
+        with tool_col1:
+            st.write("**🎲 Generate Password**")
+            gen_length = st.selectbox("Length:", [12, 16, 20, 24], index=1, key="gen_length")
+            if st.button("Generate Strong Password", key="main_gen"):
+                new_pwd = generate_strong_password(gen_length)
+                st.code(new_pwd)
+                strength, score, _ = check_password_strength(new_pwd)
+                st.write(f"Strength: {strength}")
+        
+        with tool_col2:
+            st.write("**🔍 Test Password Strength**")
+            test_pwd = st.text_input("Enter password to test:", type="password", key="test_pwd")
+            if test_pwd:
+                strength, score, feedback = check_password_strength(test_pwd)
+                st.write(f"**Strength:** {strength} ({score}/6)")
+                if feedback:
+                    for tip in feedback[:2]:  # Show top 2 tips
+                        st.write(f"💡 {tip}")
+        
+        with tool_col3:
+            st.write("**💾 Quick Actions**")
+            if st.button("🔄 Refresh All Data", key="refresh_all"):
+                st.rerun()
+            if st.button("📊 View Analytics", key="goto_analytics"):
+                st.info("Switch to Analytics tab to see detailed reports")
     
     with tab2:
         st.subheader("📊 System Overview")
         
         # Create comprehensive dataframe
-        records = []
+        all_records = []
         for section, systems in st.session_state.enhanced_data.items():
             for name, data in systems.items():
                 if not search_query or search_query.lower() in name.lower() or search_query.lower() in section.lower():
-                    records.append({
+                    all_records.append({
                         "Category": section,
                         "System": name,
-                        "Username": data["username"],
-                        "Password": "••••••••" if data["password"] and not show_passwords else data["password"],
-                        "URL": data["url"],
-                        "Strength": data["password_strength"],
-                        "Tags": ", ".join(data["tags"]),
-                        "Notes": data["notes"][:50] + "..." if len(data["notes"]) > 50 else data["notes"],
-                        "Last Modified": data["last_modified"][:10] if data["last_modified"] else "Never"
+                        "Username": data.get("username", ""),
+                        "Password": "••••••••" if data.get("password") and not show_passwords else data.get("password", ""),
+                        "URL": data.get("url", ""),
+                        "Strength": data.get("password_strength", "Not Set"),
+                        "Tags": ", ".join(data.get("tags", [])),
+                        "Notes": (data.get("notes", "")[:50] + "...") if len(data.get("notes", "")) > 50 else data.get("notes", ""),
+                        "Last Modified": data.get("last_modified", "Never")[:10] if data.get("last_modified") else "Never"
                     })
         
-        df = pd.DataFrame(records)
+        df_overview = pd.DataFrame(all_records)
         
-        if not df.empty:
+        if not df_overview.empty:
             # Color-code based on password strength
             def highlight_strength(val):
+                if pd.isna(val):
+                    return "background-color: #cccccc; color: black"
                 color_map = {
                     "Very Strong": "background-color: #00aa44; color: white",
                     "Strong": "background-color: #44aa00; color: white",
@@ -483,22 +514,26 @@ with col1:
                 }
                 return color_map.get(val, "")
             
-            styled_df = df.style.applymap(highlight_strength, subset=['Strength'])
-            st.dataframe(styled_df, use_container_width=True, height=400)
+            try:
+                styled_df = df_overview.style.applymap(highlight_strength, subset=['Strength'])
+                st.dataframe(styled_df, use_container_width=True, height=400)
+            except Exception:
+                # Fallback to regular dataframe if styling fails
+                st.dataframe(df_overview, use_container_width=True, height=400)
             
             # Summary statistics
             col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
             with col_stat1:
-                strong_passwords = len([r for r in records if r["Strength"] in ["Strong", "Very Strong"]])
+                strong_passwords = len([r for r in all_records if r["Strength"] in ["Strong", "Very Strong"]])
                 st.metric("Strong Passwords", strong_passwords)
             with col_stat2:
-                weak_passwords = len([r for r in records if r["Strength"] in ["Weak", "Very Weak"]])
+                weak_passwords = len([r for r in all_records if r["Strength"] in ["Weak", "Very Weak"]])
                 st.metric("Weak Passwords", weak_passwords, delta=-weak_passwords if weak_passwords > 0 else 0)
             with col_stat3:
-                empty_passwords = len([r for r in records if r["Strength"] == "Not Set"])
+                empty_passwords = len([r for r in all_records if r["Strength"] == "Not Set"])
                 st.metric("Missing Passwords", empty_passwords, delta=-empty_passwords if empty_passwords > 0 else 0)
             with col_stat4:
-                with_urls = len([r for r in records if r["URL"]])
+                with_urls = len([r for r in all_records if r["URL"]])
                 st.metric("Systems with URLs", with_urls)
         else:
             st.info("No systems match your search criteria.")
@@ -843,10 +878,27 @@ st.subheader("📤 Export & Backup Options")
 
 export_col1, export_col2, export_col3 = st.columns(3)
 
+# Prepare export records
+export_records = []
+for section, systems in st.session_state.enhanced_data.items():
+    for name, data in systems.items():
+        export_records.append({
+            "Category": section,
+            "System": name,
+            "Username": data.get("username", ""),
+            "Password": data.get("password", ""),
+            "URL": data.get("url", ""),
+            "Strength": data.get("password_strength", "Not Set"),
+            "Tags": ", ".join(data.get("tags", [])),
+            "Notes": data.get("notes", ""),
+            "Created": data.get("created_date", "")[:10] if data.get("created_date") else "",
+            "Modified": data.get("last_modified", "")[:10] if data.get("last_modified") else ""
+        })
+
 with export_col1:
     # CSV Export
-    if records:
-        csv_df = pd.DataFrame(records)
+    if export_records:
+        csv_df = pd.DataFrame(export_records)
         st.download_button(
             "📊 Download CSV",
             csv_df.to_csv(index=False).encode("utf-8"),
@@ -857,15 +909,18 @@ with export_col1:
 
 with export_col2:
     # Enhanced PDF Export
-    if records:
-        pdf_buffer = create_enhanced_pdf(pd.DataFrame(records), include_qr=True)
-        st.download_button(
-            "📄 Download Enhanced PDF",
-            pdf_buffer,
-            f"business_systems_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-            "application/pdf",
-            help="Download detailed PDF report with formatting"
-        )
+    if export_records:
+        try:
+            pdf_buffer = create_enhanced_pdf(pd.DataFrame(export_records), include_qr=True)
+            st.download_button(
+                "📄 Download Enhanced PDF",
+                pdf_buffer,
+                f"business_systems_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                "application/pdf",
+                help="Download detailed PDF report with formatting"
+            )
+        except Exception as e:
+            st.error(f"PDF generation error: {str(e)}")
 
 with export_col3:
     # JSON Backup
@@ -982,12 +1037,13 @@ if st.button("📧 Send Secure Email", type="primary"):
             msg['Subject'] = email_subject
             
             # Email body
+            total_records = len(export_records) if export_records else 0
             body = f"""
 {custom_message}
 
 Export Details:
 - Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-- Total Systems: {len(records)}
+- Total Systems: {total_records}
 - Format: {'PDF' if include_pdf else 'CSV' if include_csv else 'JSON'}
 - Security: {'Encrypted' if encrypt_email else 'Standard'}
 
@@ -999,19 +1055,22 @@ Business Systems Manager
             msg.attach(MIMEText(body, 'plain'))
             
             # Attach files
-            if include_pdf and records:
-                pdf_data = create_enhanced_pdf(pd.DataFrame(records))
-                part = MIMEBase('application', 'octet-stream')
-                part.set_payload(pdf_data.read())
-                encoders.encode_base64(part)
-                part.add_header(
-                    'Content-Disposition',
-                    f'attachment; filename="systems_report_{datetime.now().strftime("%Y%m%d")}.pdf"'
-                )
-                msg.attach(part)
+            if include_pdf and export_records:
+                try:
+                    pdf_data = create_enhanced_pdf(pd.DataFrame(export_records))
+                    part = MIMEBase('application', 'octet-stream')
+                    part.set_payload(pdf_data.read())
+                    encoders.encode_base64(part)
+                    part.add_header(
+                        'Content-Disposition',
+                        f'attachment; filename="systems_report_{datetime.now().strftime("%Y%m%d")}.pdf"'
+                    )
+                    msg.attach(part)
+                except Exception as e:
+                    st.warning(f"Could not attach PDF: {str(e)}")
             
-            if include_csv and records:
-                csv_data = pd.DataFrame(records).to_csv(index=False)
+            if include_csv and export_records:
+                csv_data = pd.DataFrame(export_records).to_csv(index=False)
                 part = MIMEBase('application', 'octet-stream')
                 part.set_payload(csv_data.encode('utf-8'))
                 encoders.encode_base64(part)
