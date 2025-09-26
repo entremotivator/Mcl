@@ -1,0 +1,16 @@
+# --- Web Application Framework ---
+streamlit>=1.28.0       # Web application framework
+
+# --- Data Handling ---
+pandas>=2.0.0           # Data manipulation and analysis
+numpy>=1.24.0           # Numerical computing support
+
+# --- Document Generation ---
+reportlab>=4.0.0        # PDF generation with advanced formatting
+openpyxl>=3.1.0         # Excel file creation and manipulation
+xlsxwriter>=3.1.0       # Enhanced Excel writing capabilities
+
+# --- Security & Encryption ---
+cryptography>=41.0.0    # Modern cryptographic recipes
+bcrypt>=4.0.0           # Password hashing
+passlib>=1.7.4          # Password security utilities
