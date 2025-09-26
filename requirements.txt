@@ -14,3 +14,4 @@ xlsxwriter>=3.1.0       # Enhanced Excel writing capabilities
 cryptography>=41.0.0    # Modern cryptographic recipes
 bcrypt>=4.0.0           # Password hashing
 passlib>=1.7.4          # Password security utilities
+qrcode
